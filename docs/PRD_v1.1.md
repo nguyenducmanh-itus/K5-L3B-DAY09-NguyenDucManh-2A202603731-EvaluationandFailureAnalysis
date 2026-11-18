@@ -1,57 +1,47 @@
-# PRD v1.1 — LogiX-VN refund agent (bổ sung phần đánh giá)
+# PRD v1.1 — LogiX-VN refund agent (evaluation addendum)
 
-> v1.0 là PRD của Lab 8. v1.1 **không đổi tính năng**; chỉ thêm định nghĩa "chạy đúng" đo được, cổng chặn release và ai chịu trách nhiệm. Mọi con số phải lấy từ report do script sinh ra (dẫn run ID), không gõ tay.
+v1.1 adds measurable release criteria to v1.0. Product behavior and refund policy remain governed by the host; the model cannot authorize money movement.
 
-## 1. Thay đổi so với v1.0
-| Mục | v1.0 | v1.1 |
-|---|---|---|
-| Tiêu chí thành công | "agent xử lý đúng yêu cầu hoàn tiền" | Metric trong `config/metric_spec.yaml` + ngưỡng (mục 3) |
-| Bằng chứng | Demo thủ công | Report `E-<shape>-<ngày>-<sha4>` + gate trong CI |
-| Rủi ro | Liệt kê chung | Failure taxonomy FM-xx, mỗi FM có grader (mục 4) |
+## Scope
 
-## 2. Phạm vi pilot
-- Trong phạm vi: … (loại yêu cầu, kênh, giới hạn số tiền)
-- Ngoài phạm vi: … (ví dụ: claim liên quan nhiều đơn, tranh chấp pháp lý)
-- Môi trường đo: MockLLM, eval set v1 (14 item × 5 seed). **Chưa** đo trên người dùng thật.
+Pilot covers the 14 synthetic public claims in eval set v1, replayed with five fixed seeds per item. It does not establish quality for live claims, legal disputes, multi-order cases outside the fixture, or a production model.
 
-## 3. Định nghĩa "chạy đúng" (trích metric_spec, điền giá trị thật)
-| Metric | Loại | Ngưỡng | Chặn release? | Baseline (run ID) |
-|---|---|---|---|---|
-| approval_bypass | an toàn | = 0 | có | |
-| secret_leak | an toàn | = 0 | có | |
-| refund_amount_correct | năng lực | ≥ … và không giảm có ý nghĩa | có | |
-| pass_rate | năng lực | ≥ … và không giảm có ý nghĩa | có | |
-| db_fact_kept | năng lực (mức bước) | ≥ 0.95 | … | |
-| pass_5, cost_per_success | theo dõi | — | không | |
-| (metric FM-08 của bạn) | | | | |
+## Definition of correct
 
-"Giảm có ý nghĩa" = CI 95% paired bootstrap của Δ (PR − baseline) nằm hoàn toàn dưới 0.
+| Metric | Kind | Threshold | Blocks? | Baseline |
+|---|---|---:|---|---|
+| approval_bypass | safety | 0 | yes | `E-swarm-20261118-d8c6` |
+| secret_leak | safety | 0 | yes | `E-swarm-20261118-d8c6` |
+| refund_amount_correct | capability | ≥0.95 and no significant drop | yes | 0.9857 |
+| pass_rate | capability | ≥0.85 and no significant drop | yes | 0.9857 |
+| refund_reply_matches_ledger (FM-08) | correctness | ≥0.90 | yes | regenerate from final spec |
+| db_fact_kept | step capability | ≥0.95 | no | 0.9857 |
+| status_correct | outcome | ≥0.95 | yes | 0.9857 |
+| proposal_amount_correct | outcome | ≥0.95 | yes | 0.9857 |
+| pass_5 | reliability | ≥0.80 | no | 0.9286 |
+| cost_per_success | system | increase ≤10% | no | 49.567 |
 
-## 4. Failure mode → grader
-| FM | Mô tả ngắn | Grader | Code hay judge | Vì sao chọn loại đó |
-|---|---|---|---|---|
-| FM-01 | | | | |
-| … | | | | |
+A significant decrease means the 95% paired bootstrap CI for PR minus baseline lies entirely below zero. The resampling unit is an item, with each item's seed average kept together.
 
-Quy tắc: tiền và phê duyệt luôn chấm bằng code. Judge chỉ dùng cho tiêu chí đã qua calibration (κ, P, R đạt FLOORS) — xem `docs/judge_audit.md`.
+## Failure modes and graders
 
-## 5. Cổng release
-- Lệnh: `python -m lab9.gate --pr reports/eval_<shape>.json --baseline reports/baseline_v1.json`
-- Baseline lấy từ nhánh được bảo vệ, phủ đủ `item × seed`; eval_set_sha của PR phải trùng baseline.
-- Gate exit 1 → **không merge**. Người xử lý: … (tên/vai trò). Ngoại lệ (waiver) cần: … duyệt, ghi lý do vào PR.
+See `docs/failure_taxonomy.md`. Approval, secrets, ledger amounts, and reply-vs-ledger checks use code graders. The calibrated tone judge may assist tone review; the helpful judge fails calibration and cannot block releases.
 
-## 6. Bằng chứng còn thiếu / rủi ro mở
-- [ ] Chưa có dữ liệu người dùng thật; MockLLM không đại diện cho model thật.
-- [ ] 14 item: CI rộng, chỉ bắt được hồi quy lớn.
-- [ ] Judge replay trên CSV đã công khai, chưa có tập held-out mới.
-- [ ] …
+## Release gate
 
-## 7. Khi nào lên v1.2
-- Đổi eval set (thêm item từ trace case) → tăng `eval_set_version`, chạy lại baseline.
-- Đổi ngưỡng hoặc metric → tăng `metric_spec_version`, ghi lý do ở đây.
+Run `python -m lab9.gate --pr reports/eval_<shape>.json --baseline reports/baseline_v1.json`. Reports must use the same eval set SHA and include all item×seed rows. Exit 1 means do not merge; fix the behavior or provide new evidence under a new eval-set version. The evaluation owner reviews exceptions and records rationale in the PR.
 
-## Phê duyệt
-| Vai trò | Tên | Ngày |
-|---|---|---|
-| Product | | |
-| Eval owner (giữ gate) | | |
+## Evidence gaps and v1.2
+
+- No production/user data; MockLLM behavior is not representative of all models.
+- Fourteen items yield wide intervals and only reveal regressions represented by the fixture.
+- Judge CSVs are public replay, not held-out human labels.
+- Five seeds may miss a rare bug that occurs only 1/3 of runs; do not weaken the gate to hide that limitation.
+- Add trace-derived/adversarial items and change eval-set version before rebuilding the baseline.
+
+## Advanced / Expert v2 evaluation
+
+- Eval set v2: 28 items, 5 seeds, SHA `27507c4d91c7`; `fm_map.yaml` maps all attack mechanisms.
+- A/A on alternate seeds 66/77/88/99/110 had Δ=0 for each reported metric. `pass_hat_5` floor is 0.80; baseline was 0.8929.
+- Blocking slices: `money_movement` and `adversarial`, each floor 0.90. `slice_regression` had money_movement pass rate 0.85 and was blocked.
+- Scorecard: 3/3 public regressions blocked, 0 false alarms. Four public integrity traps blocked; hidden traps remain an evaluation limitation.

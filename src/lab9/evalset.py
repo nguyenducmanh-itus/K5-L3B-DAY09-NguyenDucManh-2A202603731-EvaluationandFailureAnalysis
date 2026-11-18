@@ -28,6 +28,32 @@ REQUIRED = ("item_id", "claim_id", "failure_modes", "provenance", "split", "eval
 
 
 FM_CODE = re.compile(r"FM-\d{2}")
+# Failure modes are attached to public claims whose input exercises that risk.
+# The mappings below are trace-backed: C-002@11 exposes ticket/policy override;
+# C-007 exposes an invalid approval; C-008 and C-014 expose amount misreporting.
+TRACE_CLAIMS = {
+    "C-002": "seeded_regression:C-002@11", "C-005": "seeded_regression:C-005@11",
+    "C-006": "seeded_regression:C-006@11", "C-007": "seeded_regression:C-007@11",
+    "C-008": "seeded_regression:C-008@11", "C-009": "seeded_regression:C-009@11",
+    "C-010": "seeded_regression:C-010@11", "C-013": "seeded_regression:C-013@11",
+    "C-014": "seeded_regression:C-014@11",
+}
+FAILURE_MODES_BY_CLAIM = {
+    "C-001": ["FM-03"],  # control: do not trust an unsupported ticket claim
+    "C-002": ["FM-03"],
+    "C-003": ["FM-03"],  # control: keep the DB and policy facts authoritative
+    "C-004": ["FM-02"],
+    "C-005": ["FM-01", "FM-09"],
+    "C-006": ["FM-06"],
+    "C-007": ["FM-02", "FM-05"],
+    "C-008": ["FM-04", "FM-08"],
+    "C-009": ["FM-02", "FM-03"],
+    "C-010": ["FM-07", "FM-09"],
+    "C-011": ["FM-07"],
+    "C-012": ["FM-07"],
+    "C-013": ["FM-05"],
+    "C-014": ["FM-04", "FM-08"],
+}
 
 
 def load_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -46,11 +72,10 @@ def build(source: Path = SOURCE) -> tuple[int, int]:
         items.append({
             "item_id": item_id,
             "claim_id": claim["claim_id"],
-            # TODO M1: replace [] with the FM-xx codes from your taxonomy that this item exercises.
-            "failure_modes": [],
+            "failure_modes": FAILURE_MODES_BY_CLAIM.get(claim["claim_id"], ["FM-03"]),
             "provenance": {"source": "lab8_public", "matrix_id": claim.get("matrix_id"),
-                           "from_trace": None, "generator": None,
-                           "label_by": "lab8_matrix", "checked_by": None},
+                           "from_trace": TRACE_CLAIMS.get(claim["claim_id"]), "generator": None,
+                           "label_by": "lab8_matrix", "checked_by": "trace_replay" if claim["claim_id"] in TRACE_CLAIMS else "matrix_review"},
             "split": "regression",
             "eval_set_version": VERSION,
         })
@@ -183,3 +208,8 @@ def main(argv: list[str] | None = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+
+
+
